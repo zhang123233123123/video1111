@@ -1,7 +1,7 @@
 import streamlit as st
 import base64
 import requests
-from urllib.parse import quote
+from urllib.parse import quote, urlparse, parse_qs
 import re
 
 # 设置页面配置
@@ -11,6 +11,51 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# 添加视频链接处理函数
+def process_video_url(url):
+    """处理各种视频网站的链接，进行标准化"""
+    original_url = url
+    
+    # 腾讯视频处理
+    if 'v.qq.com' in url:
+        # 提取vid参数
+        parsed_url = urlparse(url)
+        query_params = parse_qs(parsed_url.query)
+        
+        if 'vid' in query_params:
+            vid = query_params['vid'][0]
+            # 转换为PC版标准链接
+            processed_url = f"https://v.qq.com/x/cover/{vid}.html"
+            return processed_url, f"🎬 腾讯视频链接已转换: {vid}"
+        else:
+            # 尝试从路径中提取
+            vid_match = re.search(r'vid=([^&]+)', url)
+            if vid_match:
+                vid = vid_match.group(1)
+                processed_url = f"https://v.qq.com/x/cover/{vid}.html"
+                return processed_url, f"🎬 腾讯视频链接已转换: {vid}"
+    
+    # 爱奇艺处理
+    if 'iqiyi.com' in url:
+        # 移动版转PC版
+        if 'm.iqiyi.com' in url:
+            processed_url = url.replace('m.iqiyi.com', 'www.iqiyi.com')
+            return processed_url, "📺 爱奇艺链接已转换为PC版"
+    
+    # 优酷处理
+    if 'youku.com' in url:
+        if 'm.youku.com' in url:
+            processed_url = url.replace('m.youku.com', 'v.youku.com')
+            return processed_url, "🎞️ 优酷链接已转换为PC版"
+    
+    # 哔哩哔哩处理
+    if 'bilibili.com' in url:
+        if 'm.bilibili.com' in url:
+            processed_url = url.replace('m.bilibili.com', 'www.bilibili.com')
+            return processed_url, "📱 B站链接已转换为PC版"
+    
+    return original_url, None
 
 # 自定义CSS样式 - 海绵宝宝风格
 def load_css():
@@ -162,7 +207,7 @@ def main():
         video_url = st.text_input(
             "🎬 输入视频链接",
             placeholder="在这里粘贴你要播放的视频链接...",
-            help="支持各大视频网站的链接！"
+            help="支持各大视频网站的链接！会自动转换移动版链接为PC版。"
         )
         
         # 播放按钮
@@ -181,9 +226,26 @@ def main():
             4. 🍿 享受你的视频时光！
             
             **小贴士：**
-            - 如果一个解析器不work，试试其他的！
-            - 海绵宝宝推荐使用"海绵解析器"！
-            - 记得检查视频链接是否正确哦！
+            - 🎬 支持腾讯视频、爱奇艺、优酷、B站等
+            - 📱 自动转换移动版链接为PC版
+            - 🔄 如果一个解析器不work，试试其他的！
+            - 🧽 海绵宝宝推荐使用"海绵解析器"！
+            """)
+        
+        # 支持的网站
+        with st.expander("🌐 支持的网站"):
+            st.markdown("""
+            **主要支持：**
+            - 🎬 **腾讯视频** (v.qq.com, m.v.qq.com)
+            - 📺 **爱奇艺** (iqiyi.com, m.iqiyi.com)
+            - 🎞️ **优酷** (youku.com, m.youku.com)
+            - 📱 **哔哩哔哩** (bilibili.com, m.bilibili.com)
+            - 🎵 **其他主流视频网站**
+            
+            **智能功能：**
+            - 🔄 自动转换移动版为PC版
+            - 🎯 腾讯视频vid参数提取
+            - 🛠️ 链接格式标准化
             """)
         
         # 关于信息
@@ -197,6 +259,7 @@ def main():
             - 🎨 海绵宝宝主题界面
             - 🔧 多种解析器选择
             - 🚀 快速播放体验
+            - 🤖 智能链接处理
             - 🍍 满满的童年回忆
             
             **免责声明：**
@@ -205,8 +268,15 @@ def main():
     
     # 主内容区域
     if play_button and video_url:
+        # 处理视频链接
+        processed_url, conversion_msg = process_video_url(video_url)
+        
+        # 显示转换信息
+        if conversion_msg:
+            st.info(conversion_msg)
+        
         parser_url = PARSERS[selected_parser]
-        full_url = f"{parser_url}{quote(video_url)}"
+        full_url = f"{parser_url}{quote(processed_url)}"
         
         # 显示播放信息
         st.success(f"🎉 太好了！正在使用 {selected_parser} 播放你的视频！")
@@ -229,6 +299,12 @@ def main():
         
         # 显示解析链接（调试用）
         with st.expander("🔍 解析链接（调试信息）"):
+            st.markdown("**原始链接：**")
+            st.code(video_url)
+            if processed_url != video_url:
+                st.markdown("**处理后链接：**")
+                st.code(processed_url)
+            st.markdown("**最终解析链接：**")
             st.code(full_url)
     
     elif play_button and not video_url:
@@ -270,8 +346,8 @@ def main():
         with col3:
             st.markdown("""
             <div style="background: #FFFACD; padding: 1rem; border-radius: 15px; text-align: center; border: 2px solid #FFD700;">
-                <h3 style="color: #FF8C00;">🚀 快速播放</h3>
-                <p>输入链接即可快速播放！</p>
+                <h3 style="color: #FF8C00;">🚀 智能解析</h3>
+                <p>自动处理各种链接格式！</p>
             </div>
             """, unsafe_allow_html=True)
     

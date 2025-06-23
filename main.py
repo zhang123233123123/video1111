@@ -54,6 +54,15 @@ def process_video_url(url):
         if 'm.bilibili.com' in url:
             processed_url = url.replace('m.bilibili.com', 'www.bilibili.com')
             return processed_url, "📱 B站链接已转换为PC版"
+        
+        # 处理番剧链接（ep开头的）
+        if '/bangumi/play/' in url and 'ep' in url:
+            # 提取ep号并转换为标准格式
+            ep_match = re.search(r'ep(\d+)', url)
+            if ep_match:
+                ep_id = ep_match.group(1)
+                processed_url = f"https://www.bilibili.com/bangumi/play/ep{ep_id}"
+                return processed_url, f"📺 B站番剧链接已标准化: ep{ep_id}"
     
     return original_url, None
 
@@ -125,6 +134,7 @@ def load_css():
         padding: 10px;
         font-family: 'Comic Sans MS', cursive;
         background: #FFFACD;
+        color: #000000 !important;
     }
     
     /* 选择框样式 */
@@ -133,6 +143,20 @@ def load_css():
         border-radius: 15px;
         background: #FFFACD;
         font-family: 'Comic Sans MS', cursive;
+        color: #000000 !important;
+    }
+    
+    /* 选择框选项样式 */
+    .stSelectbox > div > div > div > div {
+        color: #000000 !important;
+    }
+    
+    /* 强制所有输入元素文字为黑色 */
+    .stTextInput input, 
+    .stSelectbox select,
+    .stSelectbox div[data-baseweb="select"] > div,
+    .stSelectbox div[data-baseweb="select"] span {
+        color: #000000 !important;
     }
     
     /* 视频容器样式 */
@@ -168,14 +192,8 @@ def load_css():
 
 # 解析器配置
 PARSERS = {
-    "🍍 默认解析器": "https://jx.xymp4.cc/?url=",
-    "🧽 海绵解析器": "https://parse.ikunfei.top/parse/?url=",
-    "⭐ 派大星解析器": "https://jx.jsonplayer.com/player/?url=",
-    "🦀 蟹老板解析器": "https://jx.bozrc.com:4433/player/?url=",
-    "🏠 比奇堡解析器": "https://jx.m3u8.tv/jiexi/?url=",
-    "🎵 章鱼哥解析器": "https://jx.parwix.com:4433/player/?url=",
-    "🔥 火焰解析器": "https://jx.blbo.cc:4433/?url=",
-    "🌊 海洋解析器": "https://jx.playerjy.com/?url="
+    "🍍 默认解析器（优酷专项）": "https://jx.xymp4.cc/?url=",
+    "🧽 新海绵解析器（其他视频专项）": "https://jx.xmflv.com/?url="
 }
 
 def main():
@@ -228,8 +246,9 @@ def main():
             **小贴士：**
             - 🎬 支持腾讯视频、爱奇艺、优酷、B站等
             - 📱 自动转换移动版链接为PC版
-            - 🔄 如果一个解析器不work，试试其他的！
-            - 🧽 海绵宝宝推荐使用"海绵解析器"！
+                         - 🔄 如果一个解析器不work，试试另一个！
+             - 🍍 优酷、腾讯视频推荐"默认解析器"！
+             - 🧽 B站、爱奇艺推荐"新海绵解析器"！
             """)
         
         # 支持的网站
@@ -330,8 +349,8 @@ def main():
         with col1:
             st.markdown("""
             <div style="background: #FFE4E1; padding: 1rem; border-radius: 15px; text-align: center; border: 2px solid #FF69B4;">
-                <h3 style="color: #FF1493;">🔧 多解析器</h3>
-                <p>8个不同的解析器供你选择！</p>
+                <h3 style="color: #FF1493;">🔧 双核解析</h3>
+                <p>2个精选稳定解析器！</p>
             </div>
             """, unsafe_allow_html=True)
         

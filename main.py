@@ -194,8 +194,8 @@ def load_css():
 PARSERS = {
     "🍍 默认解析器（优酷专项）": "https://jx.xymp4.cc/?url=",
     "🧽 新海绵解析器（其他视频专项）": "https://jx.xmflv.com/?url=",
-    "bibili解析器“："https://jx.playerjy.com/?url=",
-    "备用1号线“："https://jx.nnxv.cn/tv.php?url="
+    "bibili解析器"："https://jx.playerjy.com/?url=",
+    "备用1号线"："https://jx.nnxv.cn/tv.php?url="
 }
 
 def main():

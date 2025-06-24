@@ -4,6 +4,8 @@ import requests
 from urllib.parse import quote, urlparse, parse_qs
 import re
 from datetime import datetime
+import json
+import os
 
 # 设置页面配置
 st.set_page_config(
@@ -13,22 +15,73 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 初始化session state
-if 'announcements' not in st.session_state:
-    st.session_state.announcements = [
+# 数据文件路径
+COMMENTS_FILE = "comments.json"
+ANNOUNCEMENTS_FILE = "announcements.json"
+
+# 加载评论数据
+def load_comments():
+    """从JSON文件加载评论数据"""
+    try:
+        if os.path.exists(COMMENTS_FILE):
+            with open(COMMENTS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        st.error(f"加载评论数据失败: {e}")
+    return []
+
+# 保存评论数据
+def save_comments(comments):
+    """保存评论数据到JSON文件"""
+    try:
+        with open(COMMENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(comments, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"保存评论数据失败: {e}")
+        return False
+
+# 加载公告数据
+def load_announcements():
+    """从JSON文件加载公告数据"""
+    try:
+        if os.path.exists(ANNOUNCEMENTS_FILE):
+            with open(ANNOUNCEMENTS_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        st.error(f"加载公告数据失败: {e}")
+    
+    # 返回默认公告
+    return [
         {
             'title': '🎉 欢迎使用海绵宝宝视频播放器！',
-            'content': '这是一个全新的视频播放器，支持多种视频网站解析。我们会持续更新和改进功能！',
-            'date': '2024-01-01',
+            'content': '这是一个全新的视频播放器，支持多种视频网站解析。我们会持续更新和改进功能！现在评论区已升级，所有用户都能看到彼此的评论了！',
+            'date': '2024-06-24',
             'author': '海绵宝宝'
         }
     ]
 
-if 'comments' not in st.session_state:
-    st.session_state.comments = []
+# 保存公告数据
+def save_announcements(announcements):
+    """保存公告数据到JSON文件"""
+    try:
+        with open(ANNOUNCEMENTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(announcements, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        st.error(f"保存公告数据失败: {e}")
+        return False
 
+# 初始化session state和数据
 if 'admin_logged_in' not in st.session_state:
     st.session_state.admin_logged_in = False
+
+# 加载共享数据
+if 'shared_comments' not in st.session_state:
+    st.session_state.shared_comments = load_comments()
+
+if 'shared_announcements' not in st.session_state:
+    st.session_state.shared_announcements = load_announcements()
 
 # 添加视频链接处理函数
 def process_video_url(url):
@@ -117,9 +170,12 @@ def announcement_management():
                         'date': datetime.now().strftime("%Y-%m-%d %H:%M"),
                         'author': '管理员'
                     }
-                    st.session_state.announcements.insert(0, new_announcement)
-                    st.success("✅ 公告发布成功！")
-                    st.rerun()
+                    st.session_state.shared_announcements.insert(0, new_announcement)
+                    if save_announcements(st.session_state.shared_announcements):
+                        st.success("✅ 公告发布成功！")
+                        st.rerun()
+                    else:
+                        st.error("❌ 公告保存失败！")
                 else:
                     st.error("请填写标题和内容！")
         
@@ -131,7 +187,7 @@ def announcement_management():
     
     # 显示现有公告并允许删除
     st.markdown("### 📋 现有公告")
-    for i, announcement in enumerate(st.session_state.announcements):
+    for i, announcement in enumerate(st.session_state.shared_announcements):
         with st.container():
             st.markdown(f"""
             <div style="background: #FFE4E1; padding: 1rem; border-radius: 10px; margin: 0.5rem 0; border-left: 5px solid #FF69B4;">
@@ -142,20 +198,26 @@ def announcement_management():
             """, unsafe_allow_html=True)
             
             if st.button(f"🗑️ 删除公告", key=f"delete_announcement_{i}"):
-                st.session_state.announcements.pop(i)
-                st.success("✅ 公告删除成功！")
-                st.rerun()
+                st.session_state.shared_announcements.pop(i)
+                if save_announcements(st.session_state.shared_announcements):
+                    st.success("✅ 公告删除成功！")
+                    st.rerun()
+                else:
+                    st.error("❌ 公告删除失败！")
 
 # 公告显示功能
 def display_announcements():
     """显示公告板"""
     st.markdown("### 📢 软件公告板")
     
-    if not st.session_state.announcements:
+    # 重新加载最新公告
+    st.session_state.shared_announcements = load_announcements()
+    
+    if not st.session_state.shared_announcements:
         st.info("🤔 暂时没有公告呢~")
         return
     
-    for announcement in st.session_state.announcements:
+    for announcement in st.session_state.shared_announcements:
         st.markdown(f"""
         <div style="background: linear-gradient(45deg, #FFFACD, #F0F8FF); padding: 1.5rem; border-radius: 15px; margin: 1rem 0; border: 3px solid #FF6B35; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
             <h3 style="color: #FF6B35; margin: 0; font-family: 'Comic Sans MS', cursive;">{announcement['title']}</h3>
@@ -166,10 +228,16 @@ def display_announcements():
         </div>
         """, unsafe_allow_html=True)
 
-# 评论区功能
+# 评论区功能（升级版 - 共享评论）
 def comment_section():
-    """评论区功能"""
+    """评论区功能 - 所有用户共享评论"""
     st.markdown("### 💬 用户评论区")
+    
+    # 重新加载最新评论
+    st.session_state.shared_comments = load_comments()
+    
+    # 显示共享提示
+    st.info("🌟 **评论区已升级！** 现在所有用户都能看到彼此的评论了！快来互动吧！")
     
     # 添加评论
     with st.container():
@@ -190,22 +258,25 @@ def comment_section():
                         'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         'likes': 0
                     }
-                    st.session_state.comments.insert(0, new_comment)
-                    st.success("✅ 评论发表成功！")
-                    st.rerun()
+                    st.session_state.shared_comments.insert(0, new_comment)
+                    if save_comments(st.session_state.shared_comments):
+                        st.success("✅ 评论发表成功！所有用户都能看到你的评论了！")
+                        st.rerun()
+                    else:
+                        st.error("❌ 评论保存失败！")
                 else:
                     st.error("请填写昵称和评论内容！")
     
     st.markdown("---")
     
     # 显示评论
-    st.markdown(f"#### 💭 所有评论 ({len(st.session_state.comments)})")
+    st.markdown(f"#### 💭 所有用户评论 ({len(st.session_state.shared_comments)})")
     
-    if not st.session_state.comments:
+    if not st.session_state.shared_comments:
         st.info("🤔 还没有评论，快来做第一个评论的人吧！")
         return
     
-    for i, comment in enumerate(st.session_state.comments):
+    for i, comment in enumerate(st.session_state.shared_comments):
         with st.container():
             st.markdown(f"""
             <div style="background: #F0F8FF; padding: 1rem; border-radius: 10px; margin: 0.8rem 0; border-left: 4px solid #4169E1;">
@@ -224,15 +295,22 @@ def comment_section():
             col1, col2, col3 = st.columns([6, 1, 1])
             with col2:
                 if st.button("👍", key=f"like_comment_{i}"):
-                    st.session_state.comments[i]['likes'] += 1
-                    st.rerun()
+                    st.session_state.shared_comments[i]['likes'] += 1
+                    if save_comments(st.session_state.shared_comments):
+                        st.success("👍 点赞成功！")
+                        st.rerun()
+                    else:
+                        st.error("点赞失败！")
             with col3:
                 # 管理员可以删除评论
                 if st.session_state.admin_logged_in:
                     if st.button("🗑️", key=f"delete_comment_{i}"):
-                        st.session_state.comments.pop(i)
-                        st.success("✅ 评论删除成功！")
-                        st.rerun()
+                        st.session_state.shared_comments.pop(i)
+                        if save_comments(st.session_state.shared_comments):
+                            st.success("✅ 评论删除成功！")
+                            st.rerun()
+                        else:
+                            st.error("❌ 评论删除失败！")
 
 # 自定义CSS样式 - 海绵宝宝风格
 def load_css():
@@ -398,7 +476,27 @@ PARSERS = {
     "🍍 默认解析器（优酷专项）": "https://jx.xymp4.cc/?url=",
     "🧽 新海绵解析器（其他视频专项）": "https://jx.xmflv.com/?url=",
     "bibili解析器":"https://jx.playerjy.com/?url=",
-    "备用1号线":"https://jx.nnxv.cn/tv.php?url="
+    "备用1号线":"https://jx.nnxv.cn/tv.php?url=",
+    "B站解析": "https://jx.jsonplayer.com/player/?url=",
+  "麒麟解析": "https://t1.qlplayer.cyou/player/?url=",
+  "弹幕解析": "https://jx.2s0.cn/player/?url=",
+  "虾米解析": "https://jx.xmflv.cc/?url=",
+  "夜幕解析": "https://www.yemu.xyz/?url=",
+  "云解析1": "https://jx.yparse.com/index.php?url=",
+  "云解析2": "https://jx.ppflv.com/?url=",
+  "云解析3": "https://jx.aidouer.net/?url=",
+  "JY解析": "https://jx.playerjy.com/?url=",
+  "BL解析": "https://svip.bljiex.cc/?v=",
+  "冰豆解析": "https://bd.jx.cn/?url=",
+  "阳途解析": "https://jx.yangtu.top/?url=",
+  "七哥解析1": "https://jx.mmkv.cn/tv.php?url=",
+  "七哥解析2": "https://jx.nnxv.cn/tv.php?url=",
+  "小七解析1": "https://2.08bk.com/?url=",
+  "小七解析2": "https://movie.heheda.top/?v=",
+  "剖元解析": "https://www.pouyun.com/?url=",
+  "椰子解析1": "https://7080.wang/jx/index.html?url=",
+  "椰子解析2": "https://www.mtosz.com/m3u8.php?url=",
+  "1907解析": "https://im1907.top/?jx="
 }
 
 def main():
@@ -419,9 +517,12 @@ def main():
     with st.container():
         st.markdown("### 📢 置顶公告")
         
+        # 重新加载最新公告
+        st.session_state.shared_announcements = load_announcements()
+        
         # 显示最新的2条公告作为置顶
-        if st.session_state.announcements:
-            for i, announcement in enumerate(st.session_state.announcements[:2]):  # 只显示最新的2条
+        if st.session_state.shared_announcements:
+            for i, announcement in enumerate(st.session_state.shared_announcements[:2]):  # 只显示最新的2条
                 st.markdown(f"""
                 <div style="background: linear-gradient(45deg, #FFE4E1, #FFF0F5); padding: 1rem; border-radius: 15px; margin: 0.5rem 0; border: 3px solid #FF1493; box-shadow: 0 4px 8px rgba(255,20,147,0.3); animation: glow 2s infinite alternate;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -645,13 +746,13 @@ def main():
             col1, col2, col3 = st.columns(3)
             
             with col1:
-                st.metric("📢 公告数量", len(st.session_state.announcements))
+                st.metric("📢 公告数量", len(st.session_state.shared_announcements))
             
             with col2:
-                st.metric("💬 评论数量", len(st.session_state.comments))
+                st.metric("💬 评论数量", len(st.session_state.shared_comments))
             
             with col3:
-                total_likes = sum(comment['likes'] for comment in st.session_state.comments)
+                total_likes = sum(comment['likes'] for comment in st.session_state.shared_comments)
                 st.metric("❤️ 总点赞数", total_likes)
     
     # 页脚
